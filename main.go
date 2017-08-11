@@ -30,11 +30,14 @@ func main() {
 	}
 
 	// We only have the ferryPathPoints for the Seattle-Bainbridge route
-	if conf.departingTerminal != 3 || conf.departingTerminal != 7 {
-		log.Fatal("Processing location data is only implimented for Departing Terminal ID 3 and 7")
+	if conf.departingTerminal != 3 && conf.departingTerminal != 7 {
+		log.Fatal("Processing location data is only implemented for Departing Terminal ID 3 and 7")
 	}
 
-	fmt.Println("Flags parsed.")
+	log.Println("Flags parsed.")
+
+	// Calculate the total distnce of the ferryPathPoints (see process.go)
+	calcTotalDistance()
 
 	// Channel for data from the endpoint
 	locationChan := make(chan vesselLocation)
@@ -45,26 +48,32 @@ func main() {
 	// Go doesn't have a monotonic time source, so we'll use this for measuring duration
 	lastUpdate := time.Now()
 
-	var processedLocationData processedVesselLocation
+	var locData vesselLocation
 	for {
 		if time.Since(lastUpdate).Seconds() >= float64(conf.updateFrequency) {
 			// We update the progess concurrently with this HTTP request to the endpoint
 			go conf.update(locationChan)
+			lastUpdate = time.Now()
 		}
 		// Select makes channel interactions non-blocking
 		select {
-		case locData := <-locationChan:
+		case locData = <-locationChan:
 			if locData.TimeStamp == (Time{time.Time{}}) {
 				// Mandatory field is empty, something went wrong
 				log.Println("Recieved empty location data; trying again in ", conf.updateFrequency, " seconds")
 			} else {
 				log.Println("Location data updated sucsessfully")
-				processedLocationData = locData.process()
 			}
-			lastUpdate = time.Now()
 		default: // For this to be non-blocking the default clause is required
 			break
 		}
-		fmt.Println(processedLocationData.progress())
+		if !locData.AtDock {
+			fmt.Println("\033[2J", locData.process(), "\n",
+				"Last endpoint query: ", lastUpdate.String(), "\n",
+				"Last endpoint change: ", locData.TimeStamp.String()) // Clear the screen and print the current progress
+		} else if locData.AtDock {
+			fmt.Println("\033[2J", locData.VesselName, "is currently docked.")
+		}
+		time.Sleep(500) // Update twice a second
 	}
 }

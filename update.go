@@ -91,8 +91,7 @@ func (conf *config) update(c chan vesselLocation) {
 	}
 
 	for _, v := range locationArray {
-		fmt.Println("Bar")
-		if v.InService && v.DepartingTerminalID == conf.targetTerminal {
+		if v.DepartingTerminalID == conf.departingTerminal {
 			c <- v
 		}
 	}
@@ -100,7 +99,7 @@ func (conf *config) update(c chan vesselLocation) {
 
 // The WSF endpoint returns non RFC 3339 formatted time, so we'll have to deal with it ourselves
 
-// Time impliments a coustom unmarshaller
+// Time impliments a custom unmarshaller
 type Time struct {
 	time.Time
 }
