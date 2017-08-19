@@ -13,6 +13,7 @@ type config struct {
 	departingTerminal     int
 	updateFrequency       int
 	vesselEndpointBaseURL string
+	routeWidthFactor      float64
 }
 
 func main() {
@@ -22,6 +23,7 @@ func main() {
 		"Departing Terminal ID to get boat progress for, terminal list avaliable by making a GET to http://www.wsdot.wa.gov/ferries/api/terminals/rest/terminalbasics?apiaccesscode={CODE}") // 3 is the Bainbridge Island Ferry terminal
 	flag.IntVarP(&conf.updateFrequency, "update", "u", 60, "The frequency of GETs to the /vessellocations endpoint, in seconds")
 	flag.StringVarP(&conf.vesselEndpointBaseURL, "baseurl", "b", "http://www.wsdot.wa.gov/ferries/api/vessels/rest", "The URL of the WSDOT REST API vessel data endpoint")
+	flag.Float64VarP(&conf.routeWidthFactor, "width", "w", 300, "The 'width' factor of the route, this determines how far away the ferry can be to still be considered on route")
 	flag.Parse()
 
 	// apiKey flag is required
@@ -61,19 +63,21 @@ func main() {
 			if locData.TimeStamp == (Time{time.Time{}}) {
 				// Mandatory field is empty, something went wrong
 				log.Println("Recieved empty location data; trying again in ", conf.updateFrequency, " seconds")
+				continue
 			} else {
 				log.Println("Location data updated sucsessfully")
 			}
 		default: // For this to be non-blocking the default clause is required
 			break
 		}
-		if !locData.AtDock {
-			fmt.Println("\033[2J", locData.process(), "\n",
+		if !locData.AtDock && locData.InService {
+			// locData.process(&conf)
+			fmt.Println("\033c", locData.process(&conf), "\n",
 				"Last endpoint query: ", lastUpdate.String(), "\n",
 				"Last endpoint change: ", locData.TimeStamp.String()) // Clear the screen and print the current progress
-		} else if locData.AtDock {
-			fmt.Println("\033[2J", locData.VesselName, "is currently docked.")
+		} else {
+			fmt.Println("\033c", locData.VesselName, "is currently docked.")
 		}
-		time.Sleep(500) // Update twice a second
+		time.Sleep(300 * time.Millisecond) // We can update very fast, but we don't need to
 	}
 }

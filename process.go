@@ -1,101 +1,105 @@
 package main
 
 import (
+	"log"
 	"math"
 	"time"
 
 	geo "github.com/kellydunn/golang-geo"
+	"github.com/skelterjohn/geom"
 )
-
-type processedVesselLocation struct {
-	pathIndex        int
-	smallestDistance float64
-}
-
-type coordinate struct {
-	X, Y float64
-}
 
 // ferryPathPoints are latitude and longitude of the Seattle-Bainbridge route, sourced from Google Maps
 // We interpolate between these points linearly for the time being, but a spline function
 // could be introduced if we need the extra accuracy (which I don't think we need)
-var ferryPathPoints = []coordinate{ // XXX: why does golint yell at me about this?
-	{47.622453, -122.509274},
-	{47.620197, -122.498288},
-	{47.620009, -122.497602},
-	{47.619546, -122.496700},
-	{47.619170, -122.496078},
-	{47.618331, -122.495220},
-	{47.617825, -122.494855},
-	{47.617116, -122.494469},
-	{47.608176, -122.491014},
-	{47.607757, -122.490735},
-	{47.607163, -122.490134},
-	{47.606643, -122.489362},
-	{47.606353, -122.488804},
-	{47.605934, -122.487774},
-	{47.605688, -122.486615},
-	{47.605471, -122.484770},
-	{47.605326, -122.482388},
-	{47.604169, -122.352440},
-	{47.603069, -122.343750},
-	{47.602869, -122.342291},
-	{47.602824, -122.339544},
+var ferryPathPoints = []geom.Coord{
+	{X: 47.622453, Y: -122.509274},
+	{X: 47.620197, Y: -122.498288},
+	{X: 47.620009, Y: -122.497602},
+	{X: 47.619546, Y: -122.496700},
+	{X: 47.619170, Y: -122.496078},
+	{X: 47.618331, Y: -122.495220},
+	{X: 47.617825, Y: -122.494855},
+	{X: 47.617116, Y: -122.494469},
+	{X: 47.608176, Y: -122.491014},
+	{X: 47.607757, Y: -122.490735},
+	{X: 47.607163, Y: -122.490134},
+	{X: 47.606643, Y: -122.489362},
+	{X: 47.606353, Y: -122.488804},
+	{X: 47.605934, Y: -122.487774},
+	{X: 47.605688, Y: -122.486615},
+	{X: 47.605471, Y: -122.484770},
+	{X: 47.605326, Y: -122.482388},
+	{X: 47.604169, Y: -122.352440},
+	{X: 47.603069, Y: -122.343750},
+	{X: 47.602869, Y: -122.342291},
+	{X: 47.602824, Y: -122.339544},
 }
 
-var ferryPathTotalDistance float64
+var ferryPathTotalLength float64
 
 func calcTotalDistance() {
 	for i, v := range ferryPathPoints {
 		if i <= 0 {
 			continue
 		}
-		ferryPathTotalDistance += math.Sqrt(math.Pow(ferryPathPoints[i-1].X-v.X, 2) + math.Pow(ferryPathPoints[i-1].Y-v.Y, 2))
+		ferryPathTotalLength += math.Sqrt(math.Pow(ferryPathPoints[i-1].X-v.X, 2) + math.Pow(ferryPathPoints[i-1].Y-v.Y, 2))
 	}
 }
 
-func (vesselLoc *vesselLocation) process() float64 {
-	prossVesselLoc := processedVesselLocation{}
+func (vesselLoc *vesselLocation) process(conf *config) float64 {
+	var cumulativeDistanceTravelled float64
+	var closestSegment int
+	var subClosestSegmentProgress float64 // The progress of the ferry along the closest segment
 
-	// Set up variables
-	prossVesselLoc.smallestDistance = -1
-	var cumulativeLineDistance float64
-	var currentLineDistance float64
+	// Interpolate forward in time using the heading and the speed
+	durationAhead := time.Now().Sub(vesselLoc.TimeStamp.Time)
+	distanceAhead := durationAhead.Hours() * 1.852 // A knot is 1.852 KM/h
+	interpolatedCoordinate := convertGeoPoint(geo.NewPoint(vesselLoc.Latitude, vesselLoc.Longitude).PointAtDistanceAndBearing(distanceAhead, vesselLoc.Heading))
 
-	// Compute the distance from the latitude and longitude to each path point, and find the closest one
+	// Find the closest point
+	closestSegment = -1
+	smallestDistanceToSegment := -1.0
 	for i, v := range ferryPathPoints {
-		if i <= 0 { // Don't compute this for the first point, because a single point can't form a line
+		if i <= 0 {
 			continue
 		}
-
-		// Interpolate forward in time using the heading and the speed
-		durationAhead := time.Now().Sub(vesselLoc.TimeStamp.Time)
-		distanceAhead := durationAhead.Hours() * 1.852 // A knot is 1.852 KM/h
-		transposedPoint := geo.NewPoint(vesselLoc.Latitude, vesselLoc.Longitude).PointAtDistanceAndBearing(distanceAhead, vesselLoc.Heading)
-
-		// Set up variables for calculating the distance from the current lat and long to this ferry path line
-		P1 := v
-		P2 := ferryPathPoints[i-1]
-		X0 := transposedPoint.Lat()
-		Y0 := transposedPoint.Lng()
-		d := math.Abs((P2.Y-P1.Y)*X0-(P2.X-P1.X)*Y0+P2.X*P1.Y-P2.Y*P1.X) / math.Sqrt(math.Pow(P2.Y-P1.Y, 2)+math.Pow(P2.X-P1.X, 2))
-
-		// Calculate distances
-		if d < prossVesselLoc.smallestDistance || prossVesselLoc.smallestDistance == -1 {
-			// Get how far along the current line we are (this equation is totally wrong unless the current line for i is actually the closest to the ferry)
-			currentLineDistance = math.Sqrt(math.Pow(prossVesselLoc.smallestDistance, 2) - math.Pow(d, 2))
-
-			// Add the length of the last line to the cumulativeLineDistance, if there were any lines before us
-			if i >= 2 {
-				cumulativeLineDistance += math.Sqrt(math.Pow(ferryPathPoints[i-2].X-ferryPathPoints[i-1].X, 2) + math.Pow(ferryPathPoints[i-2].Y-ferryPathPoints[i-1].Y, 2))
+		var slope geom.Coord
+		// Get the negative reciprocal of the slope of the segment we're testing against
+		// so that the tester segment is perpendicular if it intersects
+		slope.X = (ferryPathPoints[i-1].Minus(v).Y * conf.routeWidthFactor) * -1
+		slope.Y = (ferryPathPoints[i-1].Minus(v).X * conf.routeWidthFactor) * -1
+		intersectionTestSegment := geom.Segment{A: interpolatedCoordinate.Plus(slope), B: interpolatedCoordinate.Minus(slope)}
+		p, ok := intersectionTestSegment.Intersection(&geom.Segment{A: ferryPathPoints[i-1], B: v})
+		if ok {
+			distanceToSegment := p.DistanceFrom(interpolatedCoordinate)
+			if distanceToSegment < smallestDistanceToSegment || smallestDistanceToSegment == -1.0 {
+				smallestDistanceToSegment = distanceToSegment
+				closestSegment = i
+				subClosestSegmentProgress = p.DistanceFrom(ferryPathPoints[i-1])
 			}
-
-			prossVesselLoc.smallestDistance = d
-			prossVesselLoc.pathIndex = i
 		}
 	}
-	cumulativeLineDistance += currentLineDistance
-	percentage := cumulativeLineDistance / ferryPathTotalDistance
+
+	if closestSegment == -1 {
+		log.Println("Ferry is not on path, consider increasing the width flag's value")
+		return -1.0
+	}
+
+	for i := 1; i < closestSegment; i++ {
+		cumulativeDistanceTravelled += ferryPathPoints[i].DistanceFrom(ferryPathPoints[i-1])
+	}
+	cumulativeDistanceTravelled += subClosestSegmentProgress
+
+	percentage := cumulativeDistanceTravelled / ferryPathTotalLength
 
 	return percentage
 }
+
+func convertGeoPoint(pnt *geo.Point) geom.Coord {
+	return geom.Coord{X: pnt.Lat(), Y: pnt.Lng()}
+}
+
+// func (p0 coordinate) distanceToLine(p1 coordinate, p2 coordinate) float64 {
+// 	return math.Abs((p2.Y-p1.Y)*p0.X-(p2.X-p1.X)*p0.Y-p2.X*p1.Y-p2.Y*p1.X) / math.Sqrt(math.Pow(p2.Y-p1.Y, 2)+math.Pow(p2.X-p1.X, 2))
+// }
