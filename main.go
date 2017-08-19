@@ -32,8 +32,8 @@ func main() {
 	}
 
 	// We only have the ferryPathPoints for the Seattle-Bainbridge route
-	if conf.departingTerminal != 3 && conf.departingTerminal != 7 {
-		log.Fatal("Processing location data is only implemented for Departing Terminal ID 3 and 7")
+	if conf.departingTerminal != 3 {
+		log.Fatal("Processing location data is only implemented for Departing Terminal ID 3")
 	}
 
 	log.Println("Flags parsed.")
@@ -52,6 +52,7 @@ func main() {
 
 	var locData vesselLocation
 	for {
+		fmt.Println("\033c")
 		if time.Since(lastUpdate).Seconds() >= float64(conf.updateFrequency) {
 			// We update the progess concurrently with this HTTP request to the endpoint
 			go conf.update(locationChan)
@@ -72,11 +73,13 @@ func main() {
 		}
 		if !locData.AtDock && locData.InService {
 			// locData.process(&conf)
-			fmt.Println("\033c", locData.process(&conf), "\n",
+			fmt.Println(locData.process(&conf), "\n",
 				"Last endpoint query: ", lastUpdate.String(), "\n",
 				"Last endpoint change: ", locData.TimeStamp.String()) // Clear the screen and print the current progress
+		} else if locData.AtDock {
+			fmt.Println(locData.VesselName, "is currently docked.")
 		} else {
-			fmt.Println("\033c", locData.VesselName, "is currently docked.")
+			fmt.Println("Couldn't find a ferry departing from terminal", conf.departingTerminal)
 		}
 		time.Sleep(300 * time.Millisecond) // We can update very fast, but we don't need to
 	}
