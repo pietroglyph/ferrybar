@@ -24,7 +24,7 @@ type vesselLocation struct {
 	ArrivingTerminalID      int     `json:",omitempty"`
 	ArrivingTerminalName    string  `json:",omitempty"`
 	ArrivingTerminalAbbrev  string  `json:",omitempty"`
-	Latitude                float64 // float64 is our double analouge
+	Latitude                float64 // float64 is our double analogue
 	Longitude               float64
 	Speed                   float64
 	Heading                 float64
@@ -99,7 +99,7 @@ func (conf *config) update(c chan vesselLocation) {
 
 // The WSF endpoint returns non RFC 3339 formatted time, so we'll have to deal with it ourselves
 
-// Time impliments a custom unmarshaller
+// Time implements a custom unmarshaller
 type Time struct {
 	time.Time
 }
