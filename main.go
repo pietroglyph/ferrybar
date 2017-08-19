@@ -52,7 +52,7 @@ func main() {
 
 	var locData vesselLocation
 	for {
-		fmt.Println("\033c")
+		fmt.Println("\033c") // We have this up here because it lets log messages from process() to show up
 		if time.Since(lastUpdate).Seconds() >= float64(conf.updateFrequency) {
 			// We update the progess concurrently with this HTTP request to the endpoint
 			go conf.update(locationChan)
@@ -73,14 +73,14 @@ func main() {
 		}
 		if !locData.AtDock && locData.InService {
 			// locData.process(&conf)
-			fmt.Println(locData.process(&conf), "\n",
-				"Last endpoint query: ", lastUpdate.String(), "\n",
-				"Last endpoint change: ", locData.TimeStamp.String()) // Clear the screen and print the current progress
+			fmt.Println(locData.process(&conf))
 		} else if locData.AtDock {
 			fmt.Println(locData.VesselName, "is currently docked.")
 		} else {
 			fmt.Println("Couldn't find a ferry departing from terminal", conf.departingTerminal)
 		}
+		fmt.Print("Last endpoint query: ", lastUpdate.String(), "\n",
+			"Last endpoint change: ", locData.TimeStamp.String(), "\n")
 		time.Sleep(300 * time.Millisecond) // We can update very fast, but we don't need to
 	}
 }
