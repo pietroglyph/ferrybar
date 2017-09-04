@@ -51,6 +51,10 @@ func (vesselLoc *vesselLocation) process(conf *config) float64 {
 	var cumulativeDistanceTravelled float64
 	var closestSegment int
 	var subClosestSegmentProgress float64 // The progress of the ferry along the closest segment
+	var reversed bool
+	if vesselLoc.ArrivingTerminalID == conf.terminal {
+		reversed = true
+	}
 
 	// Interpolate forward in time using the heading and the speed
 	durationAhead := time.Now().Sub(vesselLoc.TimeStamp.Time)
@@ -92,6 +96,10 @@ func (vesselLoc *vesselLocation) process(conf *config) float64 {
 	cumulativeDistanceTravelled += subClosestSegmentProgress
 
 	percentage := cumulativeDistanceTravelled / ferryPathTotalLength
+
+	if reversed {
+		percentage = 1 - percentage
+	}
 
 	return percentage
 }

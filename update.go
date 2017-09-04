@@ -17,7 +17,7 @@ type vesselLocations []vesselLocation
 type vesselLocation struct {
 	VesselID                int
 	VesselName              string
-	Mmsi                    int `json:",omitempty"`
+	Mmsi                    int `json:",omitempty"` // omitempty is for optional fields
 	DepartingTerminalID     int
 	DepartingTerminalName   string
 	DepartingTerminalAbbrev string
@@ -41,10 +41,10 @@ type vesselLocation struct {
 	TimeStamp               Time `json:"TimeStamp, string"`
 }
 
-func (conf *config) update(c chan vesselLocation) {
+func (conf *config) update(c chan vesselLocations) {
 	var err error
 
-	locationData := vesselLocation{}
+	locationData := vesselLocations{}
 	client := &http.Client{}
 
 	// Set up the request
@@ -82,19 +82,14 @@ func (conf *config) update(c chan vesselLocation) {
 		return
 	}
 
-	var locationArray vesselLocations
-	err = json.Unmarshal(body, &locationArray)
+	err = json.Unmarshal(body, &locationData)
 	if err != nil {
 		log.Println("Couldn't unmarshal response JSON: ", err.Error())
-		c <- vesselLocation{}
+		c <- vesselLocations{}
 		return
 	}
 
-	for _, v := range locationArray {
-		if v.DepartingTerminalID == conf.departingTerminal {
-			c <- v
-		}
-	}
+	c <- locationData
 }
 
 // The WSF endpoint returns non RFC 3339 formatted time, so we'll have to deal with it ourselves
