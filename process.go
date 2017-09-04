@@ -107,7 +107,3 @@ func (vesselLoc *vesselLocation) process(conf *config) float64 {
 func convertGeoPoint(pnt *geo.Point) geom.Coord {
 	return geom.Coord{X: pnt.Lat(), Y: pnt.Lng()}
 }
-
-// func (p0 coordinate) distanceToLine(p1 coordinate, p2 coordinate) float64 {
-// 	return math.Abs((p2.Y-p1.Y)*p0.X-(p2.X-p1.X)*p0.Y-p2.X*p1.Y-p2.Y*p1.X) / math.Sqrt(math.Pow(p2.Y-p1.Y, 2)+math.Pow(p2.X-p1.X, 2))
-// }

@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log"
+	"os"
+	"strings"
 	"time"
 
 	flag "github.com/ogier/pflag"
@@ -36,7 +39,12 @@ func main() {
 
 	// We only have the ferryPathPoints for the Seattle-Bainbridge route
 	if conf.terminal != 3 {
-		log.Fatal("Processing location data is only implemented for Departing Terminal ID 3")
+		fmt.Print("Processing location data is only implemented for Terminal ID 3, continue (y/N)? ")
+		stdin := bufio.NewScanner(os.Stdin)
+		stdin.Scan()
+		if strings.ToLower(stdin.Text()) != "y" {
+			return
+		}
 	}
 
 	log.Println("Flags parsed")
@@ -56,7 +64,7 @@ func main() {
 	var relaventLocationData vesselLocations
 	for {
 		// Clear the screen
-		// We have this up here because it lets log messages from process() to show up
+		// We have this up here because it lets log messages from process() show up
 		fmt.Println("\033c")
 
 		// Make a request for new data to the endpoint concurrently
